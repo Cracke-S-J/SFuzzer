@@ -111,8 +111,6 @@ static int call_exect(const char *, char *const [], char *const []);
 // #endif
 
 
-/* Initialization method to Captures the relevant environment variables. */
-
 static void on_load(void) {
     pthread_mutex_lock(&mutex);
     if (0 == initialized)
