@@ -176,16 +176,16 @@ void do_ins(const char* exec_name, char *const *argv) {
         if (ret == -1) {
             log_msg(SF_ERROR, fname, "system call failed");
         }
-        FILE* as_fp = fopen(as_fn, "w+");
-        ins_pin(as_fp, (char)1);
-        fclose(as_fp);
-        as_fp = fopen(as_fn, "r");
-        char* tmp = (char*)malloc(512 + 1);
-        while (fgets(tmp, len, as_fp)) {
-            fprintf(stdout, "%s", tmp);
-        }
-        free(tmp);
-        fclose(as_fp);
+        // FILE* as_fp = fopen(as_fn, "w+");
+        // ins_pin(as_fp, (char)1);
+        // fclose(as_fp);
+        // as_fp = fopen(as_fn, "r");
+        // char* tmp = (char*)malloc(512 + 1);
+        // while (fgets(tmp, len, as_fp)) {
+        //     fprintf(stdoutrm , "%s", tmp);
+        // }
+        // free(tmp);
+        // fclose(as_fp);
     }
     return;
 }
