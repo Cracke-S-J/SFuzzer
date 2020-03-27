@@ -146,31 +146,46 @@ static void mt_safe_on_unload(void) {
 void ins_pin(FILE* fp, char is_32) {
     log_msg(SF_INFO, fname, "ins pin");
     // if (is_32) {
-        char insert[256] = "\tleal\t-8(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tmovl$\t%d, 4(%%esp)\n\tpushl\t4(%%esp)\n\tpushl\t$.LC1\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n";
+        char insert[256] = "\tleal\t-8(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tmovl\t$%d, 4(%%esp)\n\tpushl\t4(%%esp)\n\tpushl\t$.LC1\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n";
     // }
-    int pos = ftell(fp);
-    rewind(fp);
-    int len = ftell(fp);
-    char* tmp = (char*)malloc(len + 1);
-    fseek(fp, pos, 0);
-    tmp = fgets(tmp, len, fp);
-    fseek(fp, pos, 0);
     pthread_mutex_lock(&mutex);
     fprintf(fp, insert, key++);
     pthread_mutex_unlock(&mutex);
-    fprintf(fp,"%s", tmp);
-    free(tmp);
+    char tmp[128];
+    FILE* fcp = fopen("/tmp/SFtmpcp.s", "r");
+    if (fcp == NULL) {
+        log_msg(SF_ERROR, fname, "open file failed");
+        exit(0);
+    }
+    while (fgets(tmp, 127, fcp)) {
+        fprintf(fp, "%s", tmp);
+    }
     return;
 }
 
 void do_ins(const char* exec_name, char *const *argv) {
-    log_msg(SF_INFO, fname, "do ins");
-    dump_args(SF_INFO, fname, (char**)argv);
-    if (!strcmp(exec_name, "as")) {
-        // const char* as_fn = argv[sizeof(argv) - 1];
-        // FILE* as_fp = fopen(as_fn, "w");
-        // ins_pin(as_fp, (char)1);
-        fprintf(stderr, "insert asm\n");
+    if (!strcmp(exec_name, "as") || !strcmp(argv[0], "as")) {
+        dump_args(SF_INFO, fname, (char**)argv);
+        int len = getLen((char const *const *const)argv);
+        const char* as_fn = argv[len - 1];
+        log_msg(SF_INFO, fname, as_fn);
+        char cmd[64];
+        sprintf(cmd, "cp %s /tmp/SFtmpcp.s", as_fn);
+        log_msg(SF_INFO, fname, cmd);
+        int ret = system(cmd);
+        if (ret == -1) {
+            log_msg(SF_ERROR, fname, "system call failed");
+        }
+        FILE* as_fp = fopen(as_fn, "w+");
+        ins_pin(as_fp, (char)1);
+        fclose(as_fp);
+        as_fp = fopen(as_fn, "r");
+        char* tmp = (char*)malloc(512 + 1);
+        while (fgets(tmp, len, as_fp)) {
+            fprintf(stdout, "%s", tmp);
+        }
+        free(tmp);
+        fclose(as_fp);
     }
     return;
 }
