@@ -6,7 +6,7 @@ int main() {
 	char* b = "%d ";
 	char* c = "%d \n";
 	if (a == 2) {
-		// printf("%d", 2);
+		printf("%d", 2);
 		a++;
 	}
 	else {

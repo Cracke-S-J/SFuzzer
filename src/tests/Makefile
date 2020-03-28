@@ -4,7 +4,7 @@ wrapper:
 	g++ -c testwrapper.cpp -I ../wrapper/include -I ../utils/ -o testwrapper.o
 	g++ testwrapper.o wrapper.o log.o -o testwrapper
 hello:
-	gcc -S hello.c -o hello.s -m32
-	gcc hello.s -o hello -m32
+	gcc -S hello.c -o hello.s
+	gcc hello.s -o hello
 clean:
 	rm log.o wrapper.o testwrapper.o testwrapper hello hello.s

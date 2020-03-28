@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <locale.h>
 #include <unistd.h>
@@ -143,10 +144,11 @@ static void mt_safe_on_unload(void) {
     release_env_t(&init_env);
 }
 
-void ins_pin(FILE* fp, char is_32, char is_rodata) {
+void ins_pin(FILE* fp, bool is_32, bool is_rodata) {
     log_msg(SF_INFO, fname, "ins pin");
-    char insert32[256] = "\tleal\t-4(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tpushl\t$%d\n\tpushl\t$.LC999\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n";
-    char rostr[32] = ".LC999:\n\t.string	\"%d->\"\n";
+    char insert32[256] = "\tleal\t-4(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tpushl\t$%d\n\tpushl\t$.LC999\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n\tleal\t4(%%esp)\n";
+    char insert64[300] = "\tleaq\t-(128+24)(%%rsp), %%rsp\n\tmovq\t%%rdi, 0(%%rsp)\n\tmovq\t%%rsi, 8(%%rsp)\n\tmovq\t%%rax, 16(%%rsp)\n\tmovq\t$%d, %%rsi\n\tmovq\t$.LC999, %%rdi\n\tmovq\t$0, %%rax\n\tcall\tprintf\n\tmovq\t0(%%rsp), %%rdi\n\tmovq\t8(%%rsp), %%rsi\n\tmovq\t16(%%rsp), %%rax\n\tleaq\t(128+24)(%%rsp), %%rsp\n";
+    char rostr[32] = ".LC999:\n\t.string\t\"[%d]->\"\n";
 
     // save fp position
     int pos = ftell(fp);
@@ -175,6 +177,9 @@ void ins_pin(FILE* fp, char is_32, char is_rodata) {
     else if(is_32) {
         fprintf(fp, insert32, key++);
     }
+    else {
+        fprintf(fp, insert64, key++);
+    }
     pthread_mutex_unlock(&mutex);
     pos = ftell(fp);
 
@@ -196,25 +201,33 @@ void do_ins(const char* exec_name, char *const *argv) {
     if (!strcmp(exec_name, "as") || !strcmp(argv[0], "as")) {
         dump_args(SF_INFO, fname, (char**)argv);
         int len = getLen((char const *const *const)argv);
+        bool is_32 = false;
+        for (int i = 0; i < len; ++i) {
+            if (!strcmp(argv[i], "--32")) {
+                is_32 = true;
+            }
+        }
         const char* as_fn = argv[len - 1];
         log_msg(SF_INFO, fname, as_fn);
         FILE* as_fp = fopen(as_fn, "r+");
         char tmp[128];
+        bool add_rostr = true;
         while (fgets(tmp, 127, as_fp)) {
             if ((tmp[0] == '\t' && tmp[1] == 'j' && tmp[2] != 'm') ||
                 (tmp[0] == '.' && tmp[1] == 'L' && tmp[2] <= '9' && tmp[2] >= '0')) {
-                ins_pin(as_fp, (char)1, (char)0);
+                ins_pin(as_fp, is_32, false);
             }
-            else if(strstr(tmp, ".rodata")) {
-                ins_pin(as_fp, (char)0, (char)1);
+            else if(strstr(tmp, ".rodata") && add_rostr) {
+                ins_pin(as_fp, false, true);
+                add_rostr = false;
             }
         }
-        // fclose(as_fp);
-        // as_fp = fopen(as_fn, "r");
-        // while (fgets(tmp, len, as_fp)) {
-        //     fprintf(stdout, "%s", tmp);
-        // }
-        // fclose(as_fp);
+        fclose(as_fp);
+        as_fp = fopen(as_fn, "r");
+        while (fgets(tmp, len, as_fp)) {
+            fprintf(stdout, "%s", tmp);
+        }
+        fclose(as_fp);
     }
     return;
 }
