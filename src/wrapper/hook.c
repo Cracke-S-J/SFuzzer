@@ -143,16 +143,43 @@ static void mt_safe_on_unload(void) {
     release_env_t(&init_env);
 }
 
-void ins_pin(FILE* fp, char is_32) {
+void ins_pin(FILE* fp, char is_32, char is_rodata) {
     log_msg(SF_INFO, fname, "ins pin");
-    // if (is_32) {
-        char insert[256] = "\tleal\t-8(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tmovl\t$%d, 4(%%esp)\n\tpushl\t4(%%esp)\n\tpushl\t$.LC1\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n";
-    // }
-    pthread_mutex_lock(&mutex);
-    fprintf(fp, insert, key++);
-    pthread_mutex_unlock(&mutex);
+    char insert32[256] = "\tleal\t-4(%%esp), %%esp\n\tmovl\t%%eax, 0(%%esp)\n\tpushl\t$%d\n\tpushl\t$.LC999\n\tcall\tprintf\n\tmovl\t0(%%esp), %%eax\n";
+    char rostr[32] = ".LC999:\n\t.string	\"%d->\"\n";
+
+    // save fp position
+    int pos = ftell(fp);
+
     char tmp[128];
-    FILE* fcp = fopen("/tmp/SFtmpcp.s", "r");
+    // save back content
+    if (system("rm -f /tmp/SFtmpcp.s") == -1) {
+        log_msg(SF_ERROR, fname, "system call failed");
+    }
+    FILE* fcp = fopen("/tmp/SFtmpcp.s", "w");
+    if (fcp == NULL) {
+        log_msg(SF_ERROR, fname, "open file failed");
+        exit(0);
+    }
+    while (fgets(tmp, 127, fp)) {
+        fprintf(fcp, "%s", tmp);
+    }
+    fclose(fcp);
+
+    // write pin
+    fseek(fp, pos, 0);
+    pthread_mutex_lock(&mutex);
+    if (is_rodata) {
+        fprintf(fp, "%s", rostr);
+    }
+    else if(is_32) {
+        fprintf(fp, insert32, key++);
+    }
+    pthread_mutex_unlock(&mutex);
+    pos = ftell(fp);
+
+    // write back content
+    fcp = fopen("/tmp/SFtmpcp.s", "r");
     if (fcp == NULL) {
         log_msg(SF_ERROR, fname, "open file failed");
         exit(0);
@@ -160,6 +187,8 @@ void ins_pin(FILE* fp, char is_32) {
     while (fgets(tmp, 127, fcp)) {
         fprintf(fp, "%s", tmp);
     }
+    fseek(fp, pos, 0);
+    fclose(fcp);
     return;
 }
 
@@ -169,22 +198,22 @@ void do_ins(const char* exec_name, char *const *argv) {
         int len = getLen((char const *const *const)argv);
         const char* as_fn = argv[len - 1];
         log_msg(SF_INFO, fname, as_fn);
-        char cmd[64];
-        sprintf(cmd, "cp %s /tmp/SFtmpcp.s", as_fn);
-        log_msg(SF_INFO, fname, cmd);
-        int ret = system(cmd);
-        if (ret == -1) {
-            log_msg(SF_ERROR, fname, "system call failed");
+        FILE* as_fp = fopen(as_fn, "r+");
+        char tmp[128];
+        while (fgets(tmp, 127, as_fp)) {
+            if ((tmp[0] == '\t' && tmp[1] == 'j' && tmp[2] != 'm') ||
+                (tmp[0] == '.' && tmp[1] == 'L' && tmp[2] <= '9' && tmp[2] >= '0')) {
+                ins_pin(as_fp, (char)1, (char)0);
+            }
+            else if(strstr(tmp, ".rodata")) {
+                ins_pin(as_fp, (char)0, (char)1);
+            }
         }
-        // FILE* as_fp = fopen(as_fn, "w+");
-        // ins_pin(as_fp, (char)1);
         // fclose(as_fp);
         // as_fp = fopen(as_fn, "r");
-        // char* tmp = (char*)malloc(512 + 1);
         // while (fgets(tmp, len, as_fp)) {
-        //     fprintf(stdoutrm , "%s", tmp);
+        //     fprintf(stdout, "%s", tmp);
         // }
-        // free(tmp);
         // fclose(as_fp);
     }
     return;
