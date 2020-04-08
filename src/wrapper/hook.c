@@ -223,11 +223,12 @@ void do_ins(const char* exec_name, char *const *argv) {
             }
         }
         fclose(as_fp);
-        as_fp = fopen(as_fn, "r");
-        while (fgets(tmp, len, as_fp)) {
-            fprintf(stdout, "%s", tmp);
-        }
-        fclose(as_fp);
+        // for debug
+        // as_fp = fopen(as_fn, "r");
+        // while (fgets(tmp, len, as_fp)) {
+        //     fprintf(stdout, "%s", tmp);
+        // }
+        // fclose(as_fp);
     }
     return;
 }
